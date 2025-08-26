@@ -1,4 +1,5 @@
 streamlit
-SpeechRecognition pydub
+SpeechRecognition
+pydub
 mysql-connector-python
 openai
