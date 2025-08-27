@@ -23,7 +23,7 @@ def run():
             customer_message = audio_to_text(audio_file)
             st.session_state['customer_message'] = customer_message
             st.write(f"客户消息: {customer_message}")
-            
+
             # 语音转换成功后，自动填充对应的顾问消息
             # 这里使用一个基于客户消息的简单示例回复
             st.session_state['advisor_message'] = "感谢您的咨询。基于您提供的信息，我建议..."
@@ -61,17 +61,13 @@ def run():
             try:
                 # 显示加载状态
                 with st.spinner('正在生成对话摘要并保存记录...'):
-                    # 模拟生成摘要（避免每次都调用OpenAI API）
-                    # 在实际使用时，取消下面的注释并使用真实的LLM调用
-
-                    # llm = get_llm()
-                    # conversation = [{"role": "user", "content": customer_message}, {"role": "assistant", "content": advisor_message}]
-                    # summary = llm(conversation)
-
-                    # 模拟摘要，实际使用时请删除这部分
-                    # 根据实际内容生成更贴合的摘要
-                    summary = f"客户咨询投资配置问题，希望在保证本金安全的前提下获得收益。顾问提供了详细的投资策略建议。"
-                    time.sleep(1)  # 模拟处理时间
+                    # 使用GPT API生成摘要
+                    llm = get_llm()
+                    conversation = [
+                        {"role": "user", "content": customer_message},
+                        {"role": "assistant", "content": advisor_message}
+                    ]
+                    summary = llm(conversation)
 
                     # 保存聊天记录和摘要到数据库
                     save_chat_record(customer_message, advisor_message, summary)
