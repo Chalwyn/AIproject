@@ -1,6 +1,9 @@
 import streamlit as st
 from models.get_llm import get_soa_generator
 import time
+from utils.document_processor import DocumentProcessor
+import streamlit as st
+import os
 
 
 def run():
@@ -24,6 +27,12 @@ def run():
     if 'generated_template' not in st.session_state:
         st.session_state['generated_template'] = ""
 
+    if 'docs_processor' not in st.session_state:
+        st.session_state['docs_processor'] = None
+
+    if 'docs_folder' not in st.session_state:
+        st.session_state['docs_folder'] = ""
+
     # 用户输入区域
     st.subheader("顾问风格设置")
     st.session_state['advisor_style'] = st.text_area("顾问写作风格描述",
@@ -35,6 +44,29 @@ def run():
                                                           st.session_state['reference_examples'],
                                                           height=200)
 
+    # 添加文档文件夹路径输入
+    st.subheader("SOA文档和行业规则文件夹")
+    st.session_state['docs_folder'] = st.text_input("请输入包含SOA文档和行业规则的文件夹路径",
+                                                    st.session_state['docs_folder'])
+
+    # 添加处理文档按钮
+    if st.button("处理文件夹中的文档"):
+        if not st.session_state['docs_folder'].strip():
+            st.warning("请输入文件夹路径！")
+        else:
+            try:
+                with st.spinner('正在处理文件夹中的文档...'):
+                    # 初始化文档处理器
+                    st.session_state['docs_processor'] = DocumentProcessor(st.session_state['docs_folder'])
+
+                    # 处理所有文档
+                    st.session_state['docs_processor'].process_all_docs()
+
+                    st.success(
+                        f"成功处理文件夹中的文档！找到{len(st.session_state['docs_processor'].rules)}个规则文档和{len(st.session_state['docs_processor'].templates)}个模板文档")
+            except Exception as e:
+                st.error(f"处理文档时发生错误: {e}")
+
     # 生成模板按钮
     if st.button("生成个性化SOA模板"):
         if not st.session_state['advisor_style'].strip() or not st.session_state['reference_examples'].strip():
@@ -45,10 +77,27 @@ def run():
                     # 获取SOA生成器
                     soa_generator = get_soa_generator()
 
+                    # 准备行业规则和模板结构信息
+                    rules_summary = ""
+                    template_structures = ""
+
+                    if st.session_state['docs_processor']:
+                        # 获取规则摘要
+                        rules_summary = st.session_state['docs_processor'].get_rules_summary()
+                        # 获取模板结构
+                        template_structures = st.session_state['docs_processor'].get_template_structures()
+
+                    # 构建增强的参考示例，包含规则和模板结构
+                    enhanced_reference_examples = st.session_state['reference_examples']
+                    if rules_summary:
+                        enhanced_reference_examples += f"\n\n### 行业规则摘要\n{rules_summary}"
+                    if template_structures:
+                        enhanced_reference_examples += f"\n\n### 模板结构示例\n{template_structures}"
+
                     # 调用GPT API生成模板
                     st.session_state['generated_template'] = soa_generator(
                         st.session_state['advisor_style'],
-                        st.session_state['reference_examples']
+                        enhanced_reference_examples
                     )
 
                     time.sleep(1)  # 模拟处理时间

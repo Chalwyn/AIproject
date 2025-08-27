@@ -3,32 +3,41 @@ import openai
 import requests
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
+import os
+
+# 全局变量跟踪代理是否已配置
+_proxy_configured = False
+_session = None
 
 
 # 配置OpenAI连接，同时保留已设置的API密钥
 def configure_openai_proxy():
+    global _proxy_configured, _session
     try:
         # 获取当前已设置的API密钥（如果有）
         current_api_key = openai.api_key
 
-        # 使用已配置的代理
-        proxies = {
-            "http": "http://127.0.0.1:7897",
-            "https": "http://127.0.0.1:7897"  # 注意这里也是http，因为代理服务器本身是http协议
-        }
+        # 只配置一次代理
+        if not _proxy_configured:
+            # 使用已配置的代理
+            proxies = {
+                "http": "http://127.0.0.1:7897",
+                "https": "http://127.0.0.1:7897"  # 注意这里也是http，因为代理服务器本身是http协议
+            }
 
-        session = requests.Session()
-        session.proxies = proxies
-        retry = Retry(total=3, backoff_factor=0.3, status_forcelist=[500, 502, 503, 504])
-        adapter = HTTPAdapter(max_retries=retry)
-        session.mount('http://', adapter)
-        session.mount('https://', adapter)
+            _session = requests.Session()
+            _session.proxies = proxies
+            retry = Retry(total=3, backoff_factor=0.3, status_forcelist=[500, 502, 503, 504])
+            adapter = HTTPAdapter(max_retries=retry)
+            _session.mount('http://', adapter)
+            _session.mount('https://', adapter)
 
-        openai.requestssession = session
-        print(f"已配置代理: {proxies}")
+            openai.requestssession = _session
+            print(f"已配置代理: {proxies}")
+            _proxy_configured = True
 
         # 如果之前有设置API密钥，重新设置它
-        if current_api_key:
+        if current_api_key and openai.api_key != current_api_key:
             openai.api_key = current_api_key
     except Exception as e:
         print(f"配置OpenAI连接时出错: {e}")
@@ -59,8 +68,9 @@ def get_llm(model_name="gpt-3.5-turbo"):
     # 配置代理
     configure_openai_proxy()
 
-    # 设置API密钥
-    openai.api_key = load_api_key()
+    # 设置API密钥（如果尚未设置）
+    if not openai.api_key:
+        openai.api_key = load_api_key()
 
     def summarize_conversation(messages):
         # 添加系统提示词，明确要求总结的格式和重点
@@ -92,30 +102,34 @@ def get_soa_generator(model_name="gpt-3.5-turbo"):
     # 配置代理
     configure_openai_proxy()
 
-    # 设置API密钥
-    openai.api_key = load_api_key()
+    # 设置API密钥（如果尚未设置）
+    if not openai.api_key:
+        openai.api_key = load_api_key()
 
     def generate_soa_template(advisor_style, reference_examples):
         # 构建详细的Prompt，包含行业规则和顾问风格
         prompt = [
             {
                 "role": "system",
-                "content": "你是一名专业的金融顾问，擅长根据顾问风格和行业规则生成个性化的投资建议声明书(SOA)。"
+                "content": "你是一名专业的金融顾问，擅长根据顾问风格、行业规则和已有模板生成个性化的投资建议声明书(SOA)。"
             },
             {
                 "role": "user",
                 "content": f"任务：生成金融顾问专属的SOA模板，需满足以下要求：\n\n" \
-                           f"1. 规则约束：\n" \
+                           f"1. 基础规则约束：\n" \
                            f"   - 必须包含模块：客户背景（姓名、年龄、风险承受能力）、建议内容（产品组合、配置比例）、" \
                            f"建议依据（产品历史业绩、适配客户目标的原因）、风险提示（分市场风险、产品风险、流动性风险3类）、" \
                            f"费用说明（申购费、管理费）。\n" \
                            f"   - 风险提示中必须包含\"本建议非保证收益，过往业绩不代表未来表现\"这句话。\n\n" \
-                           f"2. 风格约束（参考顾问的写作习惯）：\n" \
+                           f"2. 文档规则约束：\n" \
+                           f"   - 请严格遵循参考示例中的行业规则摘要内容\n" \
+                           f"   - 请参考模板结构示例中的文档组织结构\n\n" \
+                           f"3. 风格约束（参考顾问的写作习惯）：\n" \
                            f"{advisor_style}\n\n" \
-                           f"3. 脱敏要求：所有客户个人信息用{{占位符}}代替，如{{客户姓名}}、{{资产规模}}、{{风险承受能力等级}}。\n\n" \
-                           f"4. 参考示例：\n" \
+                           f"4. 脱敏要求：所有客户个人信息用{{占位符}}代替，如{{客户姓名}}、{{资产规模}}、{{风险承受能力等级}}。\n\n" \
+                           f"5. 参考示例：\n" \
                            f"{reference_examples}\n\n" \
-                           f"请生成完整的SOA模板，模板中用{{占位符}}代替所有需客户填写的信息。"
+                           f"请生成完整的SOA模板，模板中用{{占位符}}代替所有需客户填写的信息，并确保内容与提供的行业规则和模板结构保持一致。"
             }
         ]
 
@@ -123,7 +137,7 @@ def get_soa_generator(model_name="gpt-3.5-turbo"):
             model=model_name,
             messages=prompt,
             temperature=0.7,
-            max_tokens=2000
+            max_tokens=1000
         )
         return response['choices'][0]['message']['content']
 

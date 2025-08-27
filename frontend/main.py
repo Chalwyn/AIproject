@@ -14,13 +14,10 @@ def main():
         st.subheader("欢迎使用 AI 辅助平台")
         st.write("在此平台中，您可以与客户互动、生成资产配比计划以及生成正式报告（SoA）。")
     elif choice == "与客户互动 & 记录":
-        import pages.record  # 导入聊天记录页面
         pages.record.run()
     elif choice == "生成资产配比计划":
-        import pages.plan  # 导入资产配比生成页面
         pages.plan.run()
     elif choice == "生成 SoA":
-        import pages.soa  # 导入SoA生成页面
         pages.soa.run()
 
 if __name__ == '__main__':
