@@ -4,3 +4,5 @@ getllm
 openai-whisper
 torch
 mysql-connector-python
+PyPDF2
+python-docx
