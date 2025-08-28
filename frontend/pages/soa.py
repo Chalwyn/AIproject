@@ -127,14 +127,10 @@ def run():
             try:
                 with st.spinner('📄 正在解析文件夹中的文档（PDF/DOCX）...'):
                     # 初始化文档处理器，并新增错误收集
-                    # 初始化文档处理器，并新增错误收集
                     processor = document_processor.DocumentProcessor(st.session_state['docs_folder'])
-                    # 改造：让processor保存处理的文件名和错误（需在DocumentProcessor类中补充以下属性）
                     processor.processed_rule_files = []  # 处理成功的规则文档名
                     processor.processed_template_files = []  # 处理成功的模板文档名
                     processor.process_errors = []  # 解析错误的文档信息
-
-                    # 重写process_all_docs方法（在DocumentProcessor中补充文件名记录，见下方说明）
                     processor.process_all_docs()
 
                     # 保存处理结果到会话状态
