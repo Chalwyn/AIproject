@@ -1,0 +1,6 @@
+streamlit
+openai
+getllm
+openai-whisper
+torch
+mysql-connector-python
