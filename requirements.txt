@@ -6,3 +6,7 @@ torch
 mysql-connector-python
 PyPDF2
 python-docx
+pdfplumber
+pandas
+pillow
+pytesseract

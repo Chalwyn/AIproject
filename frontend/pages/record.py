@@ -13,8 +13,7 @@ import os
 load_dotenv()
 st.set_page_config(layout="wide")
 client = OpenAI(
-    api_key='OPENAI_API_KEY')
-
+    api_key='OPENAI_API_KEY'
 
 # 定义一个将文件翻译成中文的函数
 def translate_to_chinese(text):
