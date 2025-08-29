@@ -5,3 +5,7 @@ mysql-connector-python
 openai
 python-dotenv
 requests
+pdfplumber
+pandas
+pillow
+pytesseract
