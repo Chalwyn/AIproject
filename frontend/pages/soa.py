@@ -82,16 +82,17 @@ def run():
                         style_analyzer = get_llm(model_name="gpt-3.5-turbo")
 
                         # 构建风格分析的消息列表（符合get_llm返回函数的参数要求）
-                        style_analysis_messages = [
-                            {"role": "user",
-                             "content": f"""请分析以下金融SOA文档的写作风格，总结出：
+                        content_text = """请分析以下金融SOA文档的写作风格，总结出：
 1. 语言特点（正式/通俗、长句/短句、专业术语使用频率）
 2. 结构习惯（章节划分方式、标题格式、模块顺序）
 3. 风险提示的表述风格（是否举例、是否用数据支撑）
 4. 建议依据的呈现方式（是否引用历史数据、是否做对比分析）
 
 文档内容：
-{'\n'.join(style_content_list)}"""}
+""" + '\n'.join(style_content_list)
+                        style_analysis_messages = [
+                            {"role": "user",
+                             "content": content_text}
                         ]
 
                         # 调用LLM进行风格分析（完全匹配get_llm返回函数的参数要求）

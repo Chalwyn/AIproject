@@ -5,10 +5,20 @@ import re
 import tempfile
 import json
 from PIL import Image
-import pytesseract
 import pdfplumber
+import PyPDF2
 import pandas as pd
+
 from models.get_llm import get_llm
+
+# 尝试导入pytesseract，若失败则禁用OCR功能
+try:
+    import pytesseract
+
+    _pytesseract_available = True
+except ImportError:
+    _pytesseract_available = False
+    print("未安装pytesseract模块，图片OCR功能将不可用")
 
 
 class DocumentProcessor:
@@ -26,20 +36,23 @@ class DocumentProcessor:
         self.processed_template_files = []  # 处理成功的模板文档名
         self.process_errors = []  # 解析错误的文档信息（格式："文件名：错误原因"）
 
-        # -------------------------- 新增：图片OCR配置（需用户手动确认路径）--------------------------
-        # 1. Windows用户：需将路径改为你的Tesseract安装路径（默认如下，若修改过安装位置需调整）
-        self.tesseract_path = r'D:\Program Files\Tesseract-OCR\tesseract.exe'
-        # 2. Mac用户：注释上面一行，启用下面一行（默认路径，若用brew安装）
-        # self.tesseract_path = '/usr/local/bin/tesseract'
+        # -------------------------- 图片OCR配置（可选功能）--------------------------
+        if _pytesseract_available:
+            # 1. Windows用户：需将路径改为你的Tesseract安装路径（默认如下，若修改过安装位置需调整）
+            self.tesseract_path = r'D:\Program Files\Tesseract-OCR\tesseract.exe'
+            # 2. Mac用户：注释上面一行，启用下面一行（默认路径，若用brew安装）
+            # self.tesseract_path = '/usr/local/bin/tesseract'
 
-        # 配置Tesseract路径
-        try:
-            pytesseract.pytesseract.tesseract_cmd = self.tesseract_path
-            # 验证Tesseract是否可用（避免后续OCR时才报错）
-            pytesseract.get_tesseract_version()
-        except Exception as e:
-            self.process_errors.append(
-                f"Tesseract配置错误：{str(e)}，图片OCR功能将不可用。请检查安装路径或重新安装Tesseract（附安装指南：https://github.com/UB-Mannheim/tesseract/wiki）")
+            # 配置Tesseract路径
+            try:
+                pytesseract.pytesseract.tesseract_cmd = self.tesseract_path
+                # 验证Tesseract是否可用（避免后续OCR时才报错）
+                pytesseract.get_tesseract_version()
+            except Exception as e:
+                self.process_errors.append(
+                    f"Tesseract配置错误：{str(e)}，图片OCR功能将不可用。请检查安装路径或重新安装Tesseract（附安装指南：https://github.com/UB-Mannheim/tesseract/wiki）")
+        else:
+            self.process_errors.append("未安装pytesseract模块，图片OCR功能将不可用")
 
     def _get_llm_instance(self):
         """获取LLM实例（单例模式）——原有方法，无修改"""
@@ -50,6 +63,9 @@ class DocumentProcessor:
     # -------------------------- 新增：核心工具方法（图片OCR+表格转换）--------------------------
     def _ocr_single_image(self, image_path):
         """单张图片OCR识别，返回结构化文本（标注图片来源）"""
+        if not _pytesseract_available:
+            return "【图片OCR内容】未安装pytesseract模块，无法执行图片识别\n【图片OCR结束】"
+
         try:
             # 图片预处理：转为灰度图提升识别率（减少彩色干扰）
             with Image.open(image_path) as img:
@@ -284,7 +300,7 @@ class DocumentProcessor:
             if len(content) <= 2000:
                 prompt = [
                     {"role": "user",
-                     "content": f"请总结以下金融SOA相关文档的核心内容，重点提取：1.规则要求 2.模板结构 3.必填模块 4.表格中的关键数据（如费用标准、风险等级）5.图片OCR中的有效信息，摘要需简洁完整：{content}"}
+                     "content": f"请总结以下金融SOA相关文档的核心内容，重点提取：1.规则要求 2.模板结构 3.必填模块 4.表格中的关键数据（如费用标准、风险等级、产品配置比例、历史业绩比较等），并注意保留表格的原始结构信息 5.图片OCR中的有效信息，摘要需简洁完整：{content}"}
                 ]
                 result = llm(prompt)
             elif 2001 <= len(content) <= 10000:
@@ -308,7 +324,7 @@ class DocumentProcessor:
                         continue
                     prompt = [
                         {"role": "user",
-                         "content": f"请总结以下文档第{idx}章节的核心内容，重点关注金融SOA相关的规则、结构、表格数据和图片信息：{chunk[:2000]}"}
+                         "content": f"请总结以下文档第{idx}章节的核心内容，重点关注金融SOA相关的规则、结构、产品配置比例、费用标准等表格数据（请保留表格结构信息）和图片信息：{chunk[:2000]}"}
                     ]
                     summaries.append(f"第{idx}章节摘要：{llm(prompt)}")
                 result = "\n\n".join(summaries)
@@ -320,7 +336,7 @@ class DocumentProcessor:
                 key_content = content[:3000] + "\n[文档中间部分省略]\n" + content[-2000:]
                 prompt = [
                     {"role": "user",
-                     "content": f"以下是超长金融SOA文档的关键信息（含章节列表、核心片段、表格和图片OCR内容），请总结：1.核心规则要求 2.必填模块 3.表格中的关键数据 4.图片中的有效信息 5.文档结构：\n{chapter_str}\n\n核心片段：{key_content}"}
+                     "content": f"以下是超长金融SOA文档的关键信息（含章节列表、核心片段、表格和图片OCR内容），请总结：1.核心规则要求 2.必填模块 3.表格中的关键数据（如产品配置比例、费用标准、业绩比较等，注意保留表格结构信息） 4.图片中的有效信息 5.文档结构：\n{chapter_str}\n\n核心片段：{key_content}"}
                 ]
                 result = llm(prompt)
 
