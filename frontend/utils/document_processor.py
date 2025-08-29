@@ -9,6 +9,8 @@ import pytesseract
 import pdfplumber
 import pandas as pd
 
+from models.get_llm import get_llm
+
 
 class DocumentProcessor:
     def __init__(self, docs_folder):
